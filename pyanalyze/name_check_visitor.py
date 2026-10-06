@@ -5415,7 +5415,17 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
         if not isinstance(node, ast.Call):
             return None
         if isinstance(node.func, ast.Attribute):
-            return self.varname_for_constraint(node.func.value)
+            receiver = node.func.value
+            # Only names and attribute/subscript chains rooted in a name can have
+            # a varname. Visiting anything else (e.g. a chained call like
+            # x.setdefault(...).setdefault(...)) again would re-evaluate the
+            # receiver, with exponential cost and duplicated side effects.
+            root = receiver
+            while isinstance(root, (ast.Attribute, ast.Subscript)):
+                root = root.value
+            if not isinstance(root, (ast.Name, ast.NamedExpr)):
+                return None
+            return self.varname_for_constraint(receiver)
         else:
             return None
 

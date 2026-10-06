@@ -710,6 +710,18 @@ class TestGenericMutators(TestNameCheckVisitorBase):
             untyped.get([])  # E: unhashable_key
 
     @assert_passes()
+    def test_setdefault_chained(self):
+        # Regression test for #741: chained setdefault calls used to
+        # re-visit the receiver exponentially and crash with RecursionError.
+        def capybara(process):
+            wps = {}
+            wps.setdefault("a", {}).setdefault("b", {}).setdefault("c", {}).setdefault(
+                "d", []
+            ).append({"e": []})
+            wps = process(wps)
+            return wps
+
+    @assert_passes()
     def test_setdefault(self):
         from typing import Dict, Sequence
 
