@@ -2,6 +2,7 @@
 from .implementation import assert_is_value
 from .test_name_check_visitor import TestNameCheckVisitorBase
 from .test_node_visitor import assert_passes
+from .error_code import ErrorCode
 from .value import AnySource, AnyValue, TypedDictEntry, TypedDictValue, TypedValue
 
 
@@ -371,3 +372,15 @@ class TestClosed(TestNameCheckVisitorBase):
 
             want_open(open)
             want_open(closed)
+
+
+class TestClassKeywords(TestNameCheckVisitorBase):
+    @assert_passes(settings={ErrorCode.implicit_any: True})
+    def test_closed_keyword(self):
+        from typing_extensions import TypedDict
+
+        class Closed(TypedDict, closed=True):
+            a: int
+
+        def capybara(c: Closed) -> None:
+            pass

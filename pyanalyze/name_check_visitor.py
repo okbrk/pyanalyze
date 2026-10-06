@@ -1772,7 +1772,7 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
             if sys.version_info >= (3, 12) and node.type_params:
                 self.visit_type_param_values(node.type_params)
             self._generic_visit_list(node.bases)
-            self._generic_visit_list(node.keywords)
+            self._generic_visit_list([kw.value for kw in node.keywords])
             value = self._visit_class_and_get_value(node, class_obj)
         value, _ = self._set_name_in_scope(node.name, node, value)
         return value
