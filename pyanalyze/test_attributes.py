@@ -188,6 +188,23 @@ class TestAttributes(TestNameCheckVisitorBase):
             bm.b  # E: undefined_attribute
 
     @assert_passes()
+    def test_dataclass_post_init(self):
+        from dataclasses import dataclass
+
+        @dataclass
+        class Capybara:
+            x: str
+
+            def __post_init__(self):
+                self.s = 1
+                print(self.s)
+
+        @dataclass
+        class Paca(Capybara):
+            def foo(self):
+                print(self.s)
+
+    @assert_passes()
     def test_union(self):
         from dataclasses import dataclass
         from typing import Union

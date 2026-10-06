@@ -6099,6 +6099,9 @@ def _has_only_known_attributes(
     # there was an EnumMeta.__getattr__.
     if hasattr(typ, "__getattr__"):
         return False
+    # Dataclasses may set additional attributes in __post_init__
+    if is_dataclass_type(typ) and hasattr(typ, "__post_init__"):
+        return False
     # for namedtuples
     if is_dataclass_type(typ) or issubclass(typ, tuple):
         return True

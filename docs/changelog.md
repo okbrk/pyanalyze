@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Support attributes set in a dataclass's `__post_init__` (#748)
 - Update PEP 728 support to the latest version, using the `extra_items=`
   class argument instead of an `__extra_items__` key in the dict. (#855)
 - Add support for Python 3.13 (#824)
