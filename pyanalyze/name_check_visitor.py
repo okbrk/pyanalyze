@@ -1537,6 +1537,9 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
     ) -> None:
         if self.current_class is None:
             return
+        # __slots__ are per-class, so overriding them is always fine
+        if varname == "__slots__":
+            return
         if varname in self.options.get_value_for(IgnoredForIncompatibleOverride):
             return
         for base_class, base_value in self._get_base_class_attributes(varname, node):

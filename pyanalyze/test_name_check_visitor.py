@@ -1921,6 +1921,21 @@ class TestIncompatibleOverride(TestNameCheckVisitorBase):
                 pass
 
     @assert_passes()
+    def test_slots(self):
+        class A:
+            __slots__ = ("a",)
+
+            def __init__(self) -> None:
+                self.a = 3
+
+        class B(A):
+            __slots__ = ("b",)
+
+            def __init__(self) -> None:
+                super().__init__()
+                self.b = 4
+
+    @assert_passes()
     def test_property_unannotated(self):
         class Unannotated:
             @property
