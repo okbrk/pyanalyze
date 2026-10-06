@@ -309,6 +309,8 @@ COMPARATOR_TO_OPERATOR = {
 _NEG_OPERATOR_TO_AST = {
     neg_op: node_cls for node_cls, (_, neg_op, _) in COMPARATOR_TO_OPERATOR.items()
 }
+# Scopes in which we track constraints on composite varnames (e.g., attributes)
+_COMPOSITE_SCOPE_TYPES = (ScopeType.function_scope, ScopeType.module_scope)
 AST_TO_REVERSE = {
     node_cls: _NEG_OPERATOR_TO_AST[op]
     for node_cls, (op, _, _) in COMPARATOR_TO_OPERATOR.items()
@@ -4968,7 +4970,7 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
                 return AnyValue(AnySource.inference)
             if (
                 composite_var is not None
-                and self.scopes.scope_type() == ScopeType.function_scope
+                and self.scopes.scope_type() in _COMPOSITE_SCOPE_TYPES
             ):
                 self.scopes.set(
                     composite_var.get_varname(), self.being_assigned, node, self.state
@@ -5038,7 +5040,7 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
 
             if (
                 composite_var is not None
-                and self.scopes.scope_type() == ScopeType.function_scope
+                and self.scopes.scope_type() in _COMPOSITE_SCOPE_TYPES
             ):
                 local_value = self._get_composite(
                     composite_var.get_varname(), node, return_value
@@ -5202,7 +5204,7 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
                 return Composite(AnyValue(AnySource.inference), composite, node)
             if (
                 composite is not None
-                and self.scopes.scope_type() == ScopeType.function_scope
+                and self.scopes.scope_type() in _COMPOSITE_SCOPE_TYPES
             ):
                 self.scopes.set(
                     composite.get_varname(), self.being_assigned, node, self.state
@@ -5239,7 +5241,7 @@ class NameCheckVisitor(node_visitor.ReplacingNodeVisitor):
                     return Composite(varname_value, composite, node)
             if (
                 composite is not None
-                and self.scopes.scope_type() == ScopeType.function_scope
+                and self.scopes.scope_type() in _COMPOSITE_SCOPE_TYPES
             ):
                 local_value = self._get_composite(composite.get_varname(), node, value)
                 if local_value is not UNINITIALIZED_VALUE:

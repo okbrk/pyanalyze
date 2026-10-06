@@ -1736,6 +1736,13 @@ class TestConstraints(TestNameCheckVisitorBase):
 
 class TestComposite(TestNameCheckVisitorBase):
     @assert_passes()
+    def test_module_level_narrowing(self):
+        import os
+
+        if os.altsep is not None:
+            print(os.altsep + "asdf")
+
+    @assert_passes()
     def test_assignment(self):
         class Capybara(object):
             def __init__(self, x):

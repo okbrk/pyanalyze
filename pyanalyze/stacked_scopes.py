@@ -1017,12 +1017,17 @@ class FunctionScope(Scope):
         parent_scope: Scope,
         scope_node: Optional[Node] = None,
         simplification_limit: Optional[int] = None,
+        *,
+        scope_type: ScopeType = ScopeType.function_scope,
+        variables: Optional[dict[Varname, Value]] = None,
+        scope_object: Optional[object] = None,
     ) -> None:
         super().__init__(
-            ScopeType.function_scope,
-            {},
+            scope_type,
+            {} if variables is None else variables,
             parent_scope,
             scope_node,
+            scope_object=scope_object,
             simplification_limit=simplification_limit,
         )
         self.name_to_current_definition_nodes = defaultdict(list)
@@ -1305,7 +1310,7 @@ class FunctionScope(Scope):
                 assert (
                     self.parent_scope
                 ), "constrained value must have definition nodes or parent scope"
-                parent_val, _, _ = self.parent_scope.get(ctx.varname, None, ctx.state)
+                parent_val = self._get_unconstrained_value(ctx)
                 resolved = _constrain_value(
                     [parent_val],
                     val.constraints,
@@ -1315,6 +1320,12 @@ class FunctionScope(Scope):
             return resolved
         else:
             return val
+
+    def _get_unconstrained_value(self, ctx: _LookupContext) -> Value:
+        """Value of a variable that has no definition nodes in this scope."""
+        assert self.parent_scope, "constrained value must have a parent scope"
+        parent_val, _, _ = self.parent_scope.get(ctx.varname, None, ctx.state)
+        return parent_val
 
     def _get_value_from_nodes(
         self,
@@ -1369,6 +1380,97 @@ class FunctionScope(Scope):
         )
 
 
+class ModuleScope(FunctionScope):
+    """The module-level scope.
+
+    Variables in the module scope get their values from the runtime module, so
+    assignments are not tracked flow-sensitively like they are in a
+    :class:`FunctionScope`. However, we do support constraints (type narrowing) on
+    variables and composites such as ``module.attr``, using the machinery of
+    :class:`FunctionScope`.
+
+    """
+
+    def __init__(
+        self,
+        module_vars: dict[Varname, Value],
+        parent_scope: Scope,
+        module: Optional[ModuleType],
+        simplification_limit: Optional[int] = None,
+    ) -> None:
+        super().__init__(
+            parent_scope,
+            None,
+            simplification_limit,
+            scope_type=ScopeType.module_scope,
+            variables=module_vars,
+            scope_object=module,
+        )
+
+    def _is_tracked(self, varname: Varname, node: Node, state: VisitorState) -> bool:
+        if isinstance(varname, CompositeVariable):
+            return True
+        if node is None:
+            return False
+        if state is VisitorState.check_names:
+            return (node, varname) in self.usage_to_definition_nodes
+        return varname in self.name_to_current_definition_nodes
+
+    def get_local(
+        self,
+        varname: Varname,
+        node: Node,
+        state: VisitorState,
+        from_parent_scope: bool = False,
+        fallback_value: Optional[Value] = None,
+    ) -> tuple[Value, VarnameOrigin]:
+        if self._is_tracked(varname, node, state):
+            return super().get_local(
+                varname, node, state, from_parent_scope, fallback_value
+            )
+        return Scope.get_local(
+            self, varname, node, state, from_parent_scope, fallback_value
+        )
+
+    def get_origin(
+        self, varname: Varname, node: Node, state: VisitorState
+    ) -> VarnameOrigin:
+        if self._is_tracked(varname, node, state):
+            return super().get_origin(varname, node, state)
+        return EMPTY_ORIGIN
+
+    def set(
+        self, varname: Varname, value: Value, node: Node, state: VisitorState
+    ) -> VarnameOrigin:
+        origin = Scope.set(self, varname, value, node, state)
+        if isinstance(value, ReferencingValue):
+            return origin
+        # After we assign to a variable, reset any constraints on its members.
+        for composite in self.name_to_composites[varname]:
+            self.name_to_current_definition_nodes[composite] = []
+        if varname in (LEAVES_SCOPE, LEAVES_LOOP):
+            self.definition_node_to_value[node] = value
+            self.name_to_current_definition_nodes[varname] = [node]
+            self.name_to_all_definition_nodes[varname].add(node)
+        return origin
+
+    def _get_unconstrained_value(self, ctx: _LookupContext) -> Value:
+        if not isinstance(ctx.varname, CompositeVariable) and ctx.varname in (
+            self.variables
+        ):
+            return self.resolve_reference(self.variables[ctx.varname], ctx.state)
+        return super()._get_unconstrained_value(ctx)
+
+    def items(self) -> Iterable[tuple[Varname, Value]]:
+        return Scope.items(self)
+
+    def all_variables(self) -> Iterable[Varname]:
+        return Scope.all_variables(self)
+
+    def __contains__(self, varname: Varname) -> bool:
+        return Scope.__contains__(self, varname)
+
+
 class StackedScopes:
     """Represents the stack of scopes in which Python searches for variables."""
 
@@ -1391,11 +1493,10 @@ class StackedScopes:
         self.simplification_limit = simplification_limit
         self.scopes = [
             self._builtin_scope,
-            Scope(
-                ScopeType.module_scope,
+            ModuleScope(
                 module_vars,
                 self._builtin_scope,
-                scope_object=module,
+                module,
                 simplification_limit=simplification_limit,
             ),
         ]
